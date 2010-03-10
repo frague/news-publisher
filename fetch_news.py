@@ -13,18 +13,21 @@ import string
 import time
 import urllib2
 import re
+import datetime
 
 # Constants & precompiled values
-months = ["деабр€", "€нвар€", "феврал€", "марта", "апрел€", "ма€", "июн€", "июл€", "августа", "сент€бр€", "окт€бр€", "но€бр€"]
-monthsEng = ["December", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November"]
+months = ["€нвар€", "феврал€", "марта", "апрел€", "ма€", "июн€", "июл€", "августа", "сент€бр€", "окт€бр€", "но€бр€", "деабр€"]
+monthsEng = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
 skipers = {"##>##": "[^>]*", "##<##": "[^<]*"}
 chunk = re.compile("##([a-z_]*)(:([^#]+)){0,1}##")
 
 deRegex = re.compile("[\[\]\{\}\(\)\|\$\^\+\*]");
 deTag = re.compile("</{0,1}[a-z]+[^>]*>")
-deSpace = re.compile("\s+")
+deWhitespace = re.compile("\s+")
+deSpace = re.compile("(\s+|&nbsp;)")
 newLines = re.compile("[\n\r]")
+justDate = re.compile("[^\d\-\,а-€]")
 
 baseURL = "http://www.saratovsport.ru"
 
@@ -84,25 +87,46 @@ def GetTemplateMatches(haystack, template):
 #		print "---\n%s\n---" % match.group(0)
 		result1 = {}
 		for i in range(1, len(chunks) + 1):
-			finding = deSpace.sub(" ", deTag.sub("", match.group(i))).strip()
+			finding = deWhitespace.sub(" ", deSpace.sub(" ", deTag.sub("", match.group(i)))).strip()
 			result1[chunks[i - 1]] = finding
 #		print result1
 		result.append(result1)
 
    	return result
-			
-def MakeDates(date, time):
-	Month = ""
-	for i for 0 in len(months):
-		if re.match("^[\d \-]+([%s]+)$" % months[i]:
-			Month = monthsEng[i]
 
 	
-	
-	if not re.match("^[\d \-]+([%s])$" % "]+|[".join(month for month in months), date):
-		return []
+def DetectDate(date, time):
+	dat = ""
+	for i in range(0, len(months)):
+		if re.match("^(\d+)[ \-]*([%s]+)$" % months[i], date):
+#			Month = monthsEng[i]
+			day = int(re.sub("[^\d]", "", date))
+			return datetime.datetime(datetime.date.today().year, i+1, day, int(time[0]), int(time[1]))
 
-	return date
+	return ""
+
+def DatesRange(datesText, time):
+	year = datetime.date.today().year
+	time = re.split("[^\d]", time)
+	if len(time) != 2:
+		time = ["0", "0"]
+
+	dates = []
+	datesText = justDate.sub("", datesText)
+	prevDate = ""
+	for d in datesText.split("-"):
+		if re.match("^\d+$", d):
+			prevDate = int(d)
+		else:
+			dat = DetectDate(d, time)
+			if dat:
+				if prevDate:
+					dates.append(datetime.datetime(dat.year, dat.month, prevDate, dat.hour, dat.minute))
+					prevDate = ""
+				dates.append(dat)
+			else:
+				prevDate = ""
+  	print dates
 
 
 # Main logic
@@ -120,7 +144,7 @@ calendar_service.ProgrammaticLogin()
 last = ""
 for t in GetTemplateMatches(GetWebPage(baseURL), titleTemplate):
 	for p in GetTemplateMatches(GetWebPage("%s%s" % (baseURL, t["url"].replace("&amp;", "&"))), newsTemplate):
-		print "%s: %s" % (MakeDates(p["date"], p["time"]), p["title"])
+		print "%s: %s" % (DatesRange(p["date"], p["time"]), p["title"])
 		last = p
 
 
