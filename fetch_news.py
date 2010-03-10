@@ -14,6 +14,7 @@ import time
 import urllib2
 import re
 import datetime
+from credentials import *
 
 # Constants & precompiled values
 months = ["€нвар€", "феврал€", "марта", "апрел€", "ма€", "июн€", "июл€", "августа", "сент€бр€", "окт€бр€", "но€бр€", "деабр€"]
@@ -26,10 +27,14 @@ deRegex = re.compile("[\[\]\{\}\(\)\|\$\^\+\*]");
 deTag = re.compile("</{0,1}[a-z]+[^>]*>")
 deWhitespace = re.compile("\s+")
 deSpace = re.compile("(\s+|&nbsp;)")
+deQuotes = re.compile("&[lgr](aque|t);")
 newLines = re.compile("[\n\r]")
 justDate = re.compile("[^\d\-\,а-€]")
 
+
 baseURL = "http://www.saratovsport.ru"
+eventLength = datetime.timedelta(hours=4)
+dayLength = datetime.timedelta(days=1)
 
 titleTemplate = "<a href=\"##url:\"##\">ќсновные ##title:<##</a>"
 newsTemplate = """<tr>##<##
@@ -87,7 +92,7 @@ def GetTemplateMatches(haystack, template):
 #		print "---\n%s\n---" % match.group(0)
 		result1 = {}
 		for i in range(1, len(chunks) + 1):
-			finding = deWhitespace.sub(" ", deSpace.sub(" ", deTag.sub("", match.group(i)))).strip()
+			finding = deWhitespace.sub(" ", deSpace.sub(" ", deQuotes.sub('"', deTag.sub("", match.group(i))))).strip()
 			result1[chunks[i - 1]] = finding
 #		print result1
 		result.append(result1)
@@ -104,6 +109,9 @@ def DetectDate(date, time):
 			return datetime.datetime(datetime.date.today().year, i+1, day, int(time[0]), int(time[1]))
 
 	return ""
+
+def gcDate(d):
+	return d.strftime("%Y-%m-%dT%H:%M:%S")
 
 def DatesRange(datesText, time):
 	year = datetime.date.today().year
@@ -126,38 +134,67 @@ def DatesRange(datesText, time):
 				dates.append(dat)
 			else:
 				prevDate = ""
-  	print dates
+
+	lastDate = ""
+	result = []
+	for date in dates:
+		if lastDate:
+			while lastDate < date:
+				lastDate = lastDate + dayLength
+				result.append(lastDate)
+			lastDate = ""
+		else:
+			lastDate = date
+			result.append(lastDate)
+  	return result
+
+# Login
+def gcLogin():
+	global calendar_service, email, password
+
+	calendar_service = gdata.calendar.service.CalendarService()
+	calendar_service.email = email
+	calendar_service.password = password
+	calendar_service.source = 'Calendar automated updater'
+	calendar_service.ProgrammaticLogin()
+
+# Create Quick Event
+def gcCreateEvent(e):
+	global calendar_service, calendar
+
+	for date in DatesRange(e["date"], e["time"]):
+		event = gdata.calendar.CalendarEventEntry()
+		event.title = atom.Title(text = ToUnicode(e["title"]))
+
+		content = "%s\nќткрытие: %s\nќтветственные: %s\n”частников: %s" % (e["title"], e["opening"], e["responsible"], e["participants"])
+
+		event.content = atom.Content(text = ToUnicode(content))
+		event.where.append(gdata.calendar.Where(value_string = ToUnicode(e["where"])))
+
+		event.when.append(gdata.calendar.When(start_time=gcDate(date), end_time=gcDate(date + eventLength)))
+		new_event = calendar_service.InsertEvent(event, '/calendar/feeds/%s@group.calendar.google.com/private/full' % calendar)
+
+def gcEventDoesExist(e):
+	global calendar_service
+
+	query = gdata.calendar.service.CalendarEventQuery('%s@group.calendar.google.com' % calendar, 'private', 'full', e["title"])
+	feed = calendar_service.CalendarQuery(query)
+	return len(feed.entry) > 0
 
 
+################################################################
 # Main logic
 
-'''
-# Login
-calendar_service = gdata.calendar.service.CalendarService()
-calendar_service.email = 'nikolay.bogdanov@gmail.com'
-calendar_service.password = '5002202653'
-calendar_service.source = 'Calendar automated updater'
-calendar_service.ProgrammaticLogin()
-'''
+gcLogin()
 
 # Retrieve events
 last = ""
 for t in GetTemplateMatches(GetWebPage(baseURL), titleTemplate):
-	for p in GetTemplateMatches(GetWebPage("%s%s" % (baseURL, t["url"].replace("&amp;", "&"))), newsTemplate):
-		print "%s: %s" % (DatesRange(p["date"], p["time"]), p["title"])
-		last = p
+	for e in GetTemplateMatches(GetWebPage("%s%s" % (baseURL, t["url"].replace("&amp;", "&"))), newsTemplate):
+		dates = DatesRange(e["date"], e["time"])
+		if dates:
+#			if not gcEventDoesExist(e):
+				gcCreateEvent(e)
+				print "+ %s" % e["title"]
+		last = e
 
-
-
-#################### Google Calendar API ####################
-'''
-
-#  Create Quick Event
-event = gdata.calendar.CalendarEventEntry()
-event.content = atom.Content(text = ToUnicode("%s on %s at %s" % (last["title"], last["date"], last["where"])))
-event.quick_add = gdata.calendar.QuickAdd(value='true')
-
-# Send the request and receive the response:
-new_event = calendar_service.InsertEvent(event, '/calendar/feeds/a6q29gg4ttg0mn4j6f13rhltog@group.calendar.google.com/private/full')
-
-'''
