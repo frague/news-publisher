@@ -27,10 +27,12 @@ deRegex = re.compile("[\[\]\{\}\(\)\|\$\^\+\*]");
 deTag = re.compile("</{0,1}[a-z]+[^>]*>")
 deWhitespace = re.compile("\s+")
 deSpace = re.compile("(\s+|&nbsp;)")
-deQuotes = re.compile("&[lgr](aque|t);")
+deQuotes = re.compile("&[lgr](aquo|t);")
 newLines = re.compile("[\n\r]")
 justDate = re.compile("[^\d\-\,à-ÿ]")
 
+event_titles = {}
+requested = False
 
 baseURL = "http://www.saratovsport.ru"
 eventLength = datetime.timedelta(hours=4)
@@ -172,14 +174,33 @@ def gcCreateEvent(e):
 		event.where.append(gdata.calendar.Where(value_string = ToUnicode(e["where"])))
 
 		event.when.append(gdata.calendar.When(start_time=gcDate(date), end_time=gcDate(date + eventLength)))
+#		print gcDate(date)
 		new_event = calendar_service.InsertEvent(event, '/calendar/feeds/%s@group.calendar.google.com/private/full' % calendar)
 
-def gcEventDoesExist(e):
-	global calendar_service
+def gcEventDoesExist(title):
+	global calendar_service, event_titles, requested
 
-	query = gdata.calendar.service.CalendarEventQuery('%s@group.calendar.google.com' % calendar, 'private', 'full', e["title"])
-	feed = calendar_service.CalendarQuery(query)
-	return len(feed.entry) > 0
+	title = title.decode("windows-1251")
+
+	if not requested:
+		requested = True
+
+		query = gdata.calendar.service.CalendarEventQuery('%s@group.calendar.google.com' % calendar, 'private', 'full')
+		today = datetime.date.today()
+		query.start_min = gcDate(today - datetime.timedelta(days=30))
+		query.start_max = gcDate(today + datetime.timedelta(days=30))
+		query.max_results = 200 
+		feed = calendar_service.CalendarQuery(query)
+
+		for i, an_event in enumerate(feed.entry):
+			event_titles[an_event.title.text.decode("utf-8")] = 1
+#			print "'%s'" % an_event.title.text.decode("utf-8")
+
+	result = event_titles.has_key(title)
+	event_titles[title] = 1
+	return result
+
+
 
 
 ################################################################
@@ -188,13 +209,14 @@ def gcEventDoesExist(e):
 gcLogin()
 
 # Retrieve events
-last = ""
 for t in GetTemplateMatches(GetWebPage(baseURL), titleTemplate):
 	for e in GetTemplateMatches(GetWebPage("%s%s" % (baseURL, t["url"].replace("&amp;", "&"))), newsTemplate):
 		dates = DatesRange(e["date"], e["time"])
 		if dates:
-#			if not gcEventDoesExist(e):
+			title = e["title"].decode("windows-1251")
+			if not gcEventDoesExist(e["title"]):
 				gcCreateEvent(e)
-				print "+ %s" % e["title"]
-		last = e
+				print "[+] '%s'" % title
+			else:
+				print "[-] '%s'" % title
 
