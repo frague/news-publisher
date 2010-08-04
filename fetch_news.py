@@ -38,15 +38,16 @@ baseURL = "http://www.saratovsport.ru"
 eventLength = datetime.timedelta(hours=4)
 dayLength = datetime.timedelta(days=1)
 
-titleTemplate = "<a href=\"##url:\"##\">Основные ##title:<##</a>"
+#titleTemplate = "<a href=\"##url:\"##\">Основные ##title:<##</a>"
+titleTemplate = "<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>"
+
 newsTemplate = """<tr>##<##
-<td##>##>##date:</td>##</td>##<##
-<td##>##>##time:</td>##</td>##<##
+<td##>##>##<##<div##>##><span##>##>##date:</span>##</span></div>##<##
+<div##>##><span##>##>##time:</span>##</span></div>##<##</td>##<##
 <td##>##>##title:</td>##</td>##<##
 <td##>##>##opening:</td>##</td>##<##
 <td##>##>##responsible:</td>##</td>##<##
 <td##>##>##where:</td>##</td>##<##
-<td##>##>##participants:</td>##</td>##<##
 </tr>"""
 
 # Subs
@@ -87,7 +88,6 @@ def GetTemplateMatches(haystack, template):
 		pattern = pattern.replace(k, skipers[k])
 
 #	print chunk.sub(DeChunk, pattern)
-
 	pattern = re.compile(chunk.sub(DeChunk, pattern), re.DOTALL)
 
 	for match in pattern.finditer(haystack):
@@ -168,7 +168,7 @@ def gcCreateEvent(e):
 		event = gdata.calendar.CalendarEventEntry()
 		event.title = atom.Title(text = ToUnicode(e["title"]))
 
-		content = "%s\nОткрытие: %s\nОтветственные: %s\nУчастников: %s" % (e["title"], e["opening"], e["responsible"], e["participants"])
+		content = "%s\nОткрытие: %s\nОтветственные: %s" % (e["title"], e["opening"], e["responsible"])
 
 		event.content = atom.Content(text = ToUnicode(content))
 		event.where.append(gdata.calendar.Where(value_string = ToUnicode(e["where"])))
