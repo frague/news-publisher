@@ -24,7 +24,7 @@ skipers = {"##>##": "[^>]*", "##<##": "[^<]*"}
 chunk = re.compile("##([a-z_]*)(:([^#]+)){0,1}##")
 
 deRegex = re.compile("[\[\]\{\}\(\)\|\$\^\+\*]");
-deTag = re.compile("</{0,1}[a-z]+[^>]*>")
+deTag  = re.compile("</{0,1}[a-z]+[^>]*>")
 deWhitespace = re.compile("\s+")
 deSpace = re.compile("(\s+|&nbsp;)")
 deQuotes = re.compile("&[lgr](aquo|t);")
@@ -42,8 +42,7 @@ dayLength = datetime.timedelta(days=1)
 titleTemplate = "<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>"
 
 newsTemplate = """<tr>##<##
-<td##>##>##<##<div##>##><span##>##>##date:</span>##</span></div>##<##
-<div##>##><span##>##>##time:</span>##</span></div>##<##</td>##<##
+<td##>##>##datetime:</td>##</td>##<##
 <td##>##>##title:</td>##</td>##<##
 <td##>##>##opening:</td>##</td>##<##
 <td##>##>##responsible:</td>##</td>##<##
@@ -115,8 +114,16 @@ def DetectDate(date, time):
 def gcDate(d):
 	return d.strftime("%Y-%m-%dT%H:%M:%S")
 
-def DatesRange(datesText, time):
+def DatesRange(date_string):
 	year = datetime.date.today().year
+
+	parseDate = re.search("^(.+) (\d+[^\d]\d+)$", date_string)
+	if parseDate:
+		datesText = parseDate.group(1)
+		time = parseDate.group(2)
+	else:
+		return None
+
 	time = re.split("[^\d]", time)
 	if len(time) != 2:
 		time = ["0", "0"]
@@ -164,7 +171,7 @@ def gcLogin():
 def gcCreateEvent(e):
 	global calendar_service, calendar
 
-	for date in DatesRange(e["date"], e["time"]):
+	for date in DatesRange(e["datetime"]):
 		event = gdata.calendar.CalendarEventEntry()
 		event.title = atom.Title(text = ToUnicode(e["title"]))
 
@@ -175,7 +182,10 @@ def gcCreateEvent(e):
 
 		event.when.append(gdata.calendar.When(start_time=gcDate(date), end_time=gcDate(date + eventLength)))
 #		print gcDate(date)
-		new_event = calendar_service.InsertEvent(event, '/calendar/feeds/%s@group.calendar.google.com/private/full' % calendar)
+		try:
+			new_event = calendar_service.InsertEvent(event, '/calendar/feeds/%s@group.calendar.google.com/private/full' % calendar)
+		except:
+			print "[!] Error saving event!"
 
 def gcEventDoesExist(title):
 	global calendar_service, event_titles, requested
@@ -211,12 +221,12 @@ gcLogin()
 # Retrieve events
 for t in GetTemplateMatches(GetWebPage(baseURL), titleTemplate):
 	for e in GetTemplateMatches(GetWebPage("%s%s" % (baseURL, t["url"].replace("&amp;", "&"))), newsTemplate):
-		dates = DatesRange(e["date"], e["time"])
+		dates = DatesRange(e["datetime"])
 		if dates:
 			title = e["title"].decode("windows-1251")
 			if not gcEventDoesExist(e["title"]):
 				gcCreateEvent(e)
 				print "[+] '%s'" % title
 			else:
-				print "[-] '%s'" % title
+				print "[ ] '%s'" % title
 
