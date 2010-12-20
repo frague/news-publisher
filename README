@@ -1,0 +1,2 @@
+Experimental functionality: it parses a news site and is adding events from it to Google Calendar.
+Oriented to windows-1251 source encoding.
