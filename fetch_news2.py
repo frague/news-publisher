@@ -17,8 +17,9 @@ import datetime
 from credentials import *
 
 # Constants & precompiled values
-months = [u"января", u"февраля", u"марта", u"апреля", u"мая", u"июня", u"июля", u"августа", u"сентября", u"октября", u"ноября", u"деабря"]
+months = [u"января", u"февраля", u"марта", u"апреля", u"мая", u"июня", u"июля", u"августа", u"сентября", u"октября", u"ноября", u"декабря"]
 monthsEng = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+replaces = {"&minus;": "-", "&mdash;": "-", "&quot;": "\""}
 
 skipers = {"##>##": "[^>]*", "##<##": "[^<]*"}
 chunk = re.compile("##([a-z_]*)(:([^#]+)){0,1}##")
@@ -34,11 +35,11 @@ regexpReserved = re.compile("([\[\]\{\}\.\?\*\+\-])")
 event_titles = {}
 requested = False
 
-baseURL = "http://www.saratovsport.ru"
+baseURL = "http://saratovsport.ru/index.php?mod=article&cid=19"
 eventLength = datetime.timedelta(hours=4)
 dayLength = datetime.timedelta(days=1)
 
-titleTemplate1 = "<a href=\"##url:\"##\">Основные ##title:<##</a>"
+titleTemplate1 = "<a href=\"##url:\"##\">План спортивных мероприятий министерства на ##title:<##</a>"
 titleTemplate2 = "<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>"
 
 newsTemplate = """<tr>##<##
@@ -62,6 +63,10 @@ def GetMatchGroup(haystack, expr, group):
 # Slashes reserved regexp chars
 def deRegexp(text):
 	return regexpReserved.sub("\\\\\\1", text)
+
+# Returns date in printable format
+def PrintableDate(date):
+	return date.strftime("%b, %d")
 
 # Creates RegExp for matching text until given word will be met
 def NotEqualExpression(word):
@@ -111,6 +116,7 @@ def ParseHeadedTable(markup):
 		if not isHeader:
 			cols = values
 			isHeader = True
+#			print ", ".join(values)
 		else:
 			item = {}
 			for i in range(len(cols)):
@@ -142,6 +148,11 @@ def DeChunk(match):
 		else:
 			return "([^%s]*)" % m
 	return "(.*)"
+
+def ReplaceSpecials(text):
+	for needle in replaces.keys():
+		text = text.replace(needle, replaces[needle])
+	return text
 
 def GetTemplateMatches(haystack, template):
 	result = []
@@ -182,11 +193,11 @@ def MultipleMatches(haystack, templates):
 	
 def DetectDate(date, time):
 	dat = ""
+#	print "> %s, %s" % (date, time)
 	for i in range(0, len(months)):
 		if re.match("^(\d+)[ \-]*([%s]+)$" % months[i], date):
-#			Month = monthsEng[i]
 			day = int(re.sub("[^\d]", "", date))
-			return datetime.datetime(datetime.date.today().year, i+1, day, int(time[0]), int(time[1]))
+			return datetime.datetime(datetime.date.today().year, i+1, day, time[0], time[1])
 
 	return ""
 
@@ -195,11 +206,16 @@ def gcDate(d):
 
 justDate = re.compile(u"[^\d\-\,а-я]")
 def DatesRange(date_string, time):
+
+	#print "%s, %s" % (date_string, time)
+
 	year = datetime.date.today().year
 
 	time = re.split("[^\d]", time)
-	if len(time) != 2:
-		time = ["0", "0"]
+	if len(time) >= 2:
+		time = [int(time[0]), int(time[1])]
+	else:
+		time = [0, 0]
 
 	dates = re.split("-", date_string)
 	if len(dates) == 1:
@@ -215,8 +231,8 @@ def DatesRange(date_string, time):
 				to = DetectDate(dates[1], time)
 			else:
 				# Different months
-				fr = DetectDate(dates[0], time)
-				to = DetectDate(dates[1], time)
+				fr = DetectDate(dates[0].strip(), time)
+				to = DetectDate(dates[1].strip(), time)
 			result = []
 			while fr < to:
 				result.append(fr)
@@ -239,20 +255,24 @@ def gcCreateEvent(e, dates):
 	global calendar_service, calendar
 
 	for date in dates:
-		event = gdata.calendar.CalendarEventEntry()
-		event.title = atom.Title(text = e[u"Название мероприятия"])
+		title = ReplaceSpecials(e[u"Мероприятие"])
+		place = ReplaceSpecials(e[u"Место проведения"])
 
-		content = u"%s\nОткрытие: %s\nОтветственные: %s" % (e[u"Название мероприятия"], e[u"Время открытия"], e[u"Ответственный"])
+		event = gdata.calendar.CalendarEventEntry()
+		event.title = atom.Title(text = title)
+
+		content = u"%s\nМесто проведения: %s" % (title, place)
 
 		event.content = atom.Content(text = content)
-		event.where.append(gdata.calendar.Where(value_string = e[u"Место проведения"]))
+		event.where.append(gdata.calendar.Where(value_string = place))
 
 		event.when.append(gdata.calendar.When(start_time=gcDate(date), end_time=gcDate(date + eventLength)))
 #		print gcDate(date)
 		try:
 			new_event = calendar_service.InsertEvent(event, '/calendar/feeds/%s@group.calendar.google.com/private/full' % calendar)
+			return True
 		except:
-			print "[!] Error saving event!"
+			return False
 
 def gcEventDoesExist(title):
 	global calendar_service, event_titles, requested
@@ -262,14 +282,17 @@ def gcEventDoesExist(title):
 
 		query = gdata.calendar.service.CalendarEventQuery('%s@group.calendar.google.com' % calendar, 'private', 'full')
 		today = datetime.date.today()
-		query.start_min = gcDate(today - datetime.timedelta(days=30))
+		query.start_min = gcDate(today - datetime.timedelta(days=70))
 		query.start_max = gcDate(today + datetime.timedelta(days=30))
 		query.max_results = 200 
 		feed = calendar_service.CalendarQuery(query)
 
 		for i, an_event in enumerate(feed.entry):
 			event_titles[an_event.title.text.decode("utf-8")] = 1
-#			print "'%s'" % an_event.title.text.decode("utf-8")
+			#print "'%s'" % an_event.title.text.decode("utf-8")
+		if len(event_titles) == 0:
+			print "[x] Unable to read existing events cache!"
+			exit(0)	
 
 	result = event_titles.has_key(title)
 	event_titles[title] = 1
@@ -279,24 +302,40 @@ def gcEventDoesExist(title):
 ################################################################
 # Main logic
 
+print "- Start parsing"
 tableExpr = re.compile("<table[^>]*>(%s+)</table>" % NotEqualExpression("</table>"), re.MULTILINE)
 
+print "- Login to Google Calendar"
 gcLogin()
 
 # Retrieve events
+pages = 0
+print "- Iterating through the recent 2 pages:"
 for t in MultipleMatches(GetWebPage(baseURL), [titleTemplate1, titleTemplate2]):
+	if pages == 2:
+		break
+	pages += 1
+
+	print "\n----------- Page \"%s\"" % ToUnicode(t["title"])
+
 	page = CleanTableCells(CleanHtmlTable(GetMatchGroup(GetWebPage("%s%s" % (baseURL, t["url"].replace("&amp;", "&"))), tableExpr, 1)))
+
 	table = ParseHeadedTable(page)
 	for row in table:
 		row[u"Время"] = re.sub(u"\s*ч.$", "", row[u"Время"])
-#		print DatesRange(row[u"Дата"], row[u"Время"])
+		title = ReplaceSpecials(row[u"Мероприятие"])
 
+		try:
+			dates = DatesRange(row[u"Дата"], row[u"Время"])
+			#print dates
+		except:
+			print "[!] Unable to parse date (%s) for event \"%s\"" % (row[u"Дата"], title)
 
-		dates = DatesRange(row[u"Дата"], row[u"Время"])
 		if dates:
-			title = row[u"Название мероприятия"]
 			if not gcEventDoesExist(title):
-				gcCreateEvent(row, dates)
-				print "[+] '%s'" % title
+				action = "!"
+				if gcCreateEvent(row, dates):
+					action = "+"
+				print "[%s] %s: '%s'" % (action, PrintableDate(dates[0]), title)
 			else:
-				print "[ ] '%s'" % title
+				print "[ ] %s: '%s'" % (PrintableDate(dates[0]), title)
