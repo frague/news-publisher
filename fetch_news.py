@@ -39,7 +39,7 @@ baseURL = "http://saratovsport.ru/index.php?mod=article&cid=19"
 eventLength = datetime.timedelta(hours=4)
 dayLength = datetime.timedelta(days=1)
 
-titleTemplate1 = "<a href=\"##url:\"##\">План спортивных мероприятий министерства на ##title:<##</a>"
+titleTemplate1 = "<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<##</a>"
 titleTemplate2 = "<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>"
 
 newsTemplate = """<tr>##<##
@@ -192,12 +192,14 @@ def MultipleMatches(haystack, templates):
 	return result
 	
 def DetectDate(date, time):
+	global year
+
 	dat = ""
 #	print "> %s, %s" % (date, time)
 	for i in range(0, len(months)):
 		if re.match("^(\d+)[ \-]*([%s]+)$" % months[i], date):
 			day = int(re.sub("[^\d]", "", date))
-			return datetime.datetime(datetime.date.today().year, i+1, day, time[0], time[1])
+			return datetime.datetime(year, i+1, day, time[0], time[1])
 
 	return ""
 
@@ -206,10 +208,9 @@ def gcDate(d):
 
 justDate = re.compile(u"[^\d\-\,а-я]")
 def DatesRange(date_string, time):
+	global year
 
 	#print "%s, %s" % (date_string, time)
-
-	year = datetime.date.today().year
 
 	time = re.split("[^\d]", time)
 	if len(time) >= 2:
@@ -283,7 +284,7 @@ def gcEventDoesExist(title):
 		query = gdata.calendar.service.CalendarEventQuery('%s@group.calendar.google.com' % calendar, 'private', 'full')
 		today = datetime.date.today()
 		query.start_min = gcDate(today - datetime.timedelta(days=70))
-		query.start_max = gcDate(today + datetime.timedelta(days=30))
+		query.start_max = gcDate(today + datetime.timedelta(days=70))
 		query.max_results = 200 
 		feed = calendar_service.CalendarQuery(query)
 
@@ -317,6 +318,10 @@ for t in MultipleMatches(GetWebPage(baseURL), [titleTemplate1, titleTemplate2]):
 	pages += 1
 
 	print "\n----------- Page \"%s\"" % ToUnicode(t["title"])
+
+	year = int(GetMatchGroup(t["title"], re.compile("[^\d]*(\d{4})[^\d]*"), 1))
+	if not year or year < 2000:
+		year = datetime.date.today().year
 
 	page = CleanTableCells(CleanHtmlTable(GetMatchGroup(GetWebPage("%s%s" % (baseURL, t["url"].replace("&amp;", "&"))), tableExpr, 1)))
 
