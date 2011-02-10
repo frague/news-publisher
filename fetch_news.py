@@ -20,6 +20,7 @@ from credentials import *
 months = [u"января", u"февраля", u"марта", u"апреля", u"мая", u"июня", u"июля", u"августа", u"сентября", u"октября", u"ноября", u"декабря"]
 monthsEng = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 replaces = {"&minus;": "-", "&mdash;": "-", "&quot;": "\""}
+colnames = {u"Мероприятие": [u"Название мероприятия"], u"Открытие": [u"Время открытия", u"Начало"]}
 
 skipers = {"##>##": "[^>]*", "##<##": "[^<]*"}
 chunk = re.compile("##([a-z_]*)(:([^#]+)){0,1}##")
@@ -35,12 +36,19 @@ regexpReserved = re.compile("([\[\]\{\}\.\?\*\+\-])")
 event_titles = {}
 requested = False
 
-baseURL = "http://saratovsport.ru/index.php?mod=article&cid=19"
+#baseURL = "http://saratovsport.ru/index.php?mod=article&cid=19"
+baseURL = "http://www.sport.saratov.gov.ru/news/events/"
+linkedURL = "http://www.sport.saratov.gov.ru"
+
 eventLength = datetime.timedelta(hours=4)
 dayLength = datetime.timedelta(days=1)
 
 titleTemplate1 = "<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<##</a>"
 titleTemplate2 = "<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>"
+titleTemplate3 = "<a href=\"##url:\"##\" title=\"##skip:\"##\">ПЛАН мероприятий министерства ##shit:<## на период с ##title:<## года</a>"
+
+
+#<a href="/news/detailed.php?SECTION_ID=&amp;ELEMENT_ID=10655" title="ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области  на период с 14 по 20 февраля 2011 года">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области  на период с 14 по 20 февраля 2011 года</a>
 
 newsTemplate = """<tr>##<##
 <td##>##>##datetime:</td>##</td>##<##
@@ -114,9 +122,16 @@ def ParseHeadedTable(markup):
 			values.append(ToUnicode(v).strip())
 
 		if not isHeader:
-			cols = values
+			for col in values:
+				col = deWhitespace.sub(" ", col.strip())
+				for name in colnames:
+					for item in colnames[name]:
+						if col == item:
+							col = name
+							break
+				cols.append(col)
 			isHeader = True
-#			print ", ".join(values)
+#			print "-".join(cols)
 		else:
 			item = {}
 			for i in range(len(cols)):
@@ -303,6 +318,7 @@ def gcEventDoesExist(title):
 ################################################################
 # Main logic
 
+
 print "- Start parsing"
 tableExpr = re.compile("<table[^>]*>(%s+)</table>" % NotEqualExpression("</table>"), re.MULTILINE)
 
@@ -312,20 +328,26 @@ gcLogin()
 # Retrieve events
 pages = 0
 print "- Iterating through the recent 2 pages:"
-for t in MultipleMatches(GetWebPage(baseURL), [titleTemplate1, titleTemplate2]):
-	if pages == 2:
+for t in MultipleMatches(GetWebPage(baseURL), [titleTemplate3, titleTemplate1, titleTemplate2]):
+	if pages == 5:
 		break
 	pages += 1
 
 	print "\n----------- Page \"%s\"" % ToUnicode(t["title"])
 
-	year = int(GetMatchGroup(t["title"], re.compile("[^\d]*(\d{4})[^\d]*"), 1))
+	year = int(GetMatchGroup(t["title"], re.compile("(2\d{3})"), 1))
 	if not year or year < 2000:
 		year = datetime.date.today().year
 
-	page = CleanTableCells(CleanHtmlTable(GetMatchGroup(GetWebPage("%s%s" % (baseURL, t["url"].replace("&amp;", "&"))), tableExpr, 1)))
+	page = GetWebPage("%s%s" % (linkedURL, t["url"].replace("&amp;", "&")))
 
-	table = ParseHeadedTable(page)
+	table = []
+	for tableGroup in tableExpr.finditer(page):
+		table = ParseHeadedTable(CleanTableCells(CleanHtmlTable(tableGroup.group(1))))
+		if len(table) and table[0][u"Время"]:
+			break
+
+
 	for row in table:
 		row[u"Время"] = re.sub(u"\s*ч.$", "", row[u"Время"])
 		title = ReplaceSpecials(row[u"Мероприятие"])
