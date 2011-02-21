@@ -43,14 +43,12 @@ linkedURL = "http://www.sport.saratov.gov.ru"
 eventLength = datetime.timedelta(hours=4)
 dayLength = datetime.timedelta(days=1)
 
-titleTemplate1 = "<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<##</a>"
+titleTemplate1 = "<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<## года</a>"
 titleTemplate2 = "<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>"
 titleTemplate3 = "<a href=\"##url:\"##\" title=\"##skip:\"##\">ПЛАН мероприятий министерства ##shit:<## на период с ##title:<## года</a>"
-titleTemplate4 = "<a href=\"##url:\"##\">Мероприятия  министерства ##shit:<## области ##title:<## г.</a>"
+titleTemplate4 = "<a href=\"##url:\"##\">Мероприятия##shit:<## области ##title:<## г.</a>"
 
-
-
-#<a href="/news/detailed.php?SECTION_ID=&amp;ELEMENT_ID=10655" title="ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области  на период с 14 по 20 февраля 2011 года">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области  на период с 14 по 20 февраля 2011 года</a>
+#Мероприятия  министерства по развитию спорта, физической культуры и туризма  Саратовской области с 21 по 27 февраля 2011 г.
 
 newsTemplate = """<tr>##<##
 <td##>##>##datetime:</td>##</td>##<##
@@ -147,7 +145,11 @@ def ParseHeadedTable(markup):
 
 
 def ToUnicode(text):
-	return unicode(text, 'cp1251')
+	try:
+		return unicode(text, 'cp1251')
+	except:
+		print "[!] Error converting to unicode: %s" % text
+		exit(0)
 
 def GetWebPage(url):
 #	print "\n\n URL: %s" % url
@@ -329,7 +331,7 @@ gcLogin()
 
 # Retrieve events
 pages = 0
-print "- Iterating through the recent 2 pages:"
+print "- Iterating through the recent 5 pages:"
 for t in MultipleMatches(GetWebPage(baseURL), [titleTemplate3, titleTemplate1, titleTemplate2, titleTemplate4]):
 	if pages == 5:
 		break
