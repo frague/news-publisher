@@ -37,7 +37,7 @@ event_titles = {}
 requested = False
 
 #baseURL = "http://saratovsport.ru/index.php?mod=article&cid=19"
-baseURL = "http://www.sport.saratov.gov.ru/news/events/"
+baseURL = "http://www.sport.saratov.gov.ru/news/sport/"
 linkedURL = "http://www.sport.saratov.gov.ru"
 
 eventLength = datetime.timedelta(hours=4)
@@ -46,6 +46,8 @@ dayLength = datetime.timedelta(days=1)
 titleTemplate1 = "<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<##</a>"
 titleTemplate2 = "<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>"
 titleTemplate3 = "<a href=\"##url:\"##\" title=\"##skip:\"##\">ПЛАН мероприятий министерства ##shit:<## на период с ##title:<## года</a>"
+titleTemplate4 = "<a href=\"##url:\"##\">Мероприятия  министерства ##shit:<## области ##title:<## г.</a>"
+
 
 
 #<a href="/news/detailed.php?SECTION_ID=&amp;ELEMENT_ID=10655" title="ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области  на период с 14 по 20 февраля 2011 года">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области  на период с 14 по 20 февраля 2011 года</a>
@@ -328,7 +330,7 @@ gcLogin()
 # Retrieve events
 pages = 0
 print "- Iterating through the recent 2 pages:"
-for t in MultipleMatches(GetWebPage(baseURL), [titleTemplate3, titleTemplate1, titleTemplate2]):
+for t in MultipleMatches(GetWebPage(baseURL), [titleTemplate3, titleTemplate1, titleTemplate2, titleTemplate4]):
 	if pages == 5:
 		break
 	pages += 1
