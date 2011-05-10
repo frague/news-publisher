@@ -19,8 +19,8 @@ from credentials import *
 # Constants & precompiled values
 months = [u"января", u"февраля", u"марта", u"апреля", u"мая", u"июня", u"июля", u"августа", u"сентября", u"октября", u"ноября", u"декабря"]
 monthsEng = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-replaces = {"&minus;": "-", "&mdash;": "-", "&quot;": "\""}
-colnames = {u"Мероприятие": [u"Название мероприятия"], u"Открытие": [u"Время открытия", u"Начало"]}
+replaces = {"&minus;": "-", "&mdash;": "-", "&quot;": "\"", "&ndash;": "-"}
+colnames = {u"Мероприятие": [u"Название мероприятия"], u"Открытие": [u"Время открытия", u"Начало"], u"Место проведения": [u"Место проведения>"]}
 
 skipers = {"##>##": "[^>]*", "##<##": "[^<]*"}
 chunk = re.compile("##([a-z_]*)(:([^#]+)){0,1}##")
@@ -37,16 +37,14 @@ event_titles = {}
 requested = False
 
 #baseURL = "http://saratovsport.ru/index.php?mod=article&cid=19"
-baseURL = "http://www.sport.saratov.gov.ru/news/sport/"
+baseURL = "http://www.sport.saratov.gov.ru/news/events/"
 linkedURL = "http://www.sport.saratov.gov.ru"
 
 eventLength = datetime.timedelta(hours=4)
 dayLength = datetime.timedelta(days=1)
 
-titleTemplate1 = "<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<## года</a>"
-titleTemplate2 = "<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>"
-titleTemplate3 = "<a href=\"##url:\"##\" title=\"##skip:\"##\">ПЛАН мероприятий министерства ##shit:<## на период с ##title:<## года</a>"
-titleTemplate4 = "<a href=\"##url:\"##\">Мероприятия##shit:<## области ##title:<## г.</a>"
+titleTemplates = ["<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<## года</a>", "<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>", "<a href=\"##url:\"##\" title=\"##skip:\"##\">ПЛАН мероприятий министерства ##shit:<## на период с ##title:<## года</a>", "<a href=\"##url:\"##\">Мероприятия##shit:<## области ##title:<## г.</a>", "<a href=\"##url:\"##\">План мероприятий ##shit:<## на ##title:<## года</a>"]
+
 
 #Мероприятия  министерства по развитию спорта, физической культуры и туризма  Саратовской области с 21 по 27 февраля 2011 г.
 
@@ -225,11 +223,14 @@ def DetectDate(date, time):
 def gcDate(d):
 	return d.strftime("%Y-%m-%dT%H:%M:%S")
 
+def gcRecurrentDate(d):
+#	return (d - datetime.timedelta(hours=4)).strftime("%Y%m%dT%H%M%SZ")
+#	return d.strftime("%Y%m%dT%H%M%S")
+	return d.strftime("%Y%m%dT%H%M%SZ")
+
 justDate = re.compile(u"[^\d\-\,а-я]")
 def DatesRange(date_string, time):
 	global year
-
-	#print "%s, %s" % (date_string, time)
 
 	time = re.split("[^\d]", time)
 	if len(time) >= 2:
@@ -253,11 +254,8 @@ def DatesRange(date_string, time):
 				# Different months
 				fr = DetectDate(dates[0].strip(), time)
 				to = DetectDate(dates[1].strip(), time)
-			result = []
-			while fr < to:
-				result.append(fr)
-				fr = fr + datetime.timedelta(days=1)
-			return result
+
+			return [fr, to]
   	return []
 
 # Login
@@ -271,28 +269,34 @@ def gcLogin():
 	calendar_service.ProgrammaticLogin()
 
 # Create Quick Event
-def gcCreateEvent(e, dates):
+def gcCreateEvent(e, start_date, end_date=None):
 	global calendar_service, calendar
 
-	for date in dates:
-		title = ReplaceSpecials(e[u"Мероприятие"])
-		place = ReplaceSpecials(e[u"Место проведения"])
+	result = True
 
-		event = gdata.calendar.CalendarEventEntry()
-		event.title = atom.Title(text = title)
+	title = ReplaceSpecials(e[u"Мероприятие"])
+	place = ReplaceSpecials(e[u"Место проведения"])
 
-		content = u"%s\nМесто проведения: %s" % (title, place)
+	event = gdata.calendar.CalendarEventEntry()
+	event.title = atom.Title(text = title)
+	
+	content = u"%s\nМесто проведения: %s" % (title, place)
 
-		event.content = atom.Content(text = content)
-		event.where.append(gdata.calendar.Where(value_string = place))
+	event.content = atom.Content(text = content)
+	event.where.append(gdata.calendar.Where(value_string = place))
 
-		event.when.append(gdata.calendar.When(start_time=gcDate(date), end_time=gcDate(date + eventLength)))
-#		print gcDate(date)
-		try:
-			new_event = calendar_service.InsertEvent(event, '/calendar/feeds/%s@group.calendar.google.com/private/full' % calendar)
-			return True
-		except:
-			return False
+	if end_date:
+		recurrence_data = "DTSTART;TZID=Europe/Moscow:%s\r\nDURATION:PT4H\r\nRRULE:FREQ=DAILY;UNTIL=%s\r\n" % (gcRecurrentDate(start_date), gcRecurrentDate(end_date + eventLength))
+		#print recurrence_data
+		event.recurrence = gdata.calendar.Recurrence(text=recurrence_data)
+	else:
+		event.when.append(gdata.calendar.When(start_time=gcDate(start_date), end_time=gcDate(start_date + eventLength)))
+
+	try:
+		new_event = calendar_service.InsertEvent(event, '/calendar/feeds/%s@group.calendar.google.com/private/full' % calendar)
+		return True
+	except:
+		return False
 
 def gcEventDoesExist(title):
 	global calendar_service, event_titles, requested
@@ -312,7 +316,7 @@ def gcEventDoesExist(title):
 			#print "'%s'" % an_event.title.text.decode("utf-8")
 		if len(event_titles) == 0:
 			print "[x] Unable to read existing events cache!"
-			exit(0)	
+			exit(1)	
 
 	result = event_titles.has_key(title)
 	event_titles[title] = 1
@@ -332,8 +336,8 @@ gcLogin()
 # Retrieve events
 pages = 0
 print "- Iterating through the recent 5 pages:"
-for t in MultipleMatches(GetWebPage(baseURL), [titleTemplate3, titleTemplate1, titleTemplate2, titleTemplate4]):
-	if pages == 5:
+for t in MultipleMatches(GetWebPage(baseURL), titleTemplates):
+	if pages == 1:
 		break
 	pages += 1
 
@@ -365,7 +369,12 @@ for t in MultipleMatches(GetWebPage(baseURL), [titleTemplate3, titleTemplate1, t
 		if dates:
 			if not gcEventDoesExist(title):
 				action = "!"
-				if gcCreateEvent(row, dates):
+
+				end_date = None
+				if len(dates) > 1:
+					end_date = dates[1]
+
+				if gcCreateEvent(row, dates[0], end_date):
 					action = "+"
 				print "[%s] %s: '%s'" % (action, PrintableDate(dates[0]), title)
 			else:
