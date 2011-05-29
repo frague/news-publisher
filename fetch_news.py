@@ -36,14 +36,20 @@ regexpReserved = re.compile("([\[\]\{\}\.\?\*\+\-])")
 event_titles = {}
 requested = False
 
-#baseURL = "http://saratovsport.ru/index.php?mod=article&cid=19"
 baseURL = "http://www.sport.saratov.gov.ru/news/events/"
+#baseURL = "http://www.sport.saratov.gov.ru/news/sport/"
 linkedURL = "http://www.sport.saratov.gov.ru"
 
 eventLength = datetime.timedelta(hours=4)
 dayLength = datetime.timedelta(days=1)
 
-titleTemplates = ["<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<## года</a>", "<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>", "<a href=\"##url:\"##\" title=\"##skip:\"##\">ПЛАН мероприятий министерства ##shit:<## на период с ##title:<## года</a>", "<a href=\"##url:\"##\">Мероприятия##shit:<## области ##title:<## г.</a>", "<a href=\"##url:\"##\">План мероприятий ##shit:<## на ##title:<## года</a>"]
+titleTemplates = [
+	"<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<## года</a>", 
+	"<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>", 
+	"<a href=\"##url:\"##\" title=\"##skip:\"##\">ПЛАН мероприятий министерства ##shit:<## на период с ##title:<## года</a>", 
+	"<a href=\"##url:\"##\">Мероприятия##shit:<## области ##title:<## г.</a>", 
+	"<a href=\"##url:\"##\">План ##shit:<## на ##title:<## года</a>"
+]
 
 
 #Мероприятия  министерства по развитию спорта, физической культуры и туризма  Саратовской области с 21 по 27 февраля 2011 г.
@@ -72,7 +78,10 @@ def deRegexp(text):
 
 # Returns date in printable format
 def PrintableDate(date):
-	return date.strftime("%b, %d")
+	try:
+		return date.strftime("%b, %d")
+	except:
+		return "<Invalid date>";
 
 # Creates RegExp for matching text until given word will be met
 def NotEqualExpression(word):
@@ -277,6 +286,9 @@ def gcCreateEvent(e, start_date, end_date=None):
 	title = ReplaceSpecials(e[u"Мероприятие"])
 	place = ReplaceSpecials(e[u"Место проведения"])
 
+	if not title:
+		return False
+
 	event = gdata.calendar.CalendarEventEntry()
 	event.title = atom.Title(text = title)
 	
@@ -366,7 +378,7 @@ for t in MultipleMatches(GetWebPage(baseURL), titleTemplates):
 		except:
 			print "[!] Unable to parse date (%s) for event \"%s\"" % (row[u"Дата"], title)
 
-		if dates:
+		if dates and title:
 			if not gcEventDoesExist(title):
 				action = "!"
 
@@ -374,8 +386,12 @@ for t in MultipleMatches(GetWebPage(baseURL), titleTemplates):
 				if len(dates) > 1:
 					end_date = dates[1]
 
-				if gcCreateEvent(row, dates[0], end_date):
-					action = "+"
+				for i in range(0, 5):
+					if gcCreateEvent(row, dates[0], end_date):
+						action = "+"
+						break;	
+					else:
+						time.sleep(5)
 				print "[%s] %s: '%s'" % (action, PrintableDate(dates[0]), title)
 			else:
 				print "[ ] %s: '%s'" % (PrintableDate(dates[0]), title)
