@@ -36,8 +36,8 @@ regexpReserved = re.compile("([\[\]\{\}\.\?\*\+\-])")
 event_titles = {}
 requested = False
 
-baseURL = "http://www.sport.saratov.gov.ru/news/events/"
-#baseURL = "http://www.sport.saratov.gov.ru/news/sport/"
+#baseURL = "http://www.sport.saratov.gov.ru/news/events/"
+baseURL = "http://www.sport.saratov.gov.ru/news/sport/"
 linkedURL = "http://www.sport.saratov.gov.ru"
 
 eventLength = datetime.timedelta(hours=4)
@@ -48,7 +48,8 @@ titleTemplates = [
 	"<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>", 
 	"<a href=\"##url:\"##\" title=\"##skip:\"##\">ПЛАН мероприятий министерства ##shit:<## на период с ##title:<## года</a>", 
 	"<a href=\"##url:\"##\">Мероприятия##shit:<## области ##title:<## г.</a>", 
-	"<a href=\"##url:\"##\">План ##shit:<## на ##title:<## года</a>"
+	"<a href=\"##url:\"##\">План ##shit:<## на ##title:<## года</a>",
+	"<a href=\"##url:\"##\">##shit:<## мероприяти##shit:<## министерства ##title:<##</a>"
 ]
 
 
@@ -355,9 +356,11 @@ for t in MultipleMatches(GetWebPage(baseURL), titleTemplates):
 
 	print "\n----------- Page \"%s\"" % ToUnicode(t["title"])
 
-	year = int(GetMatchGroup(t["title"], re.compile("(2\d{3})"), 1))
+	year = GetMatchGroup(t["title"], re.compile("(2\d{3})"), 1)
 	if not year or year < 2000:
 		year = datetime.date.today().year
+	else:
+		year = int(year)
 
 	page = GetWebPage("%s%s" % (linkedURL, t["url"].replace("&amp;", "&")))
 
