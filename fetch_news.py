@@ -32,6 +32,7 @@ deSpace = re.compile("(\s+|&nbsp;)")
 deQuotes = re.compile("&[lgr](aquo|t);")
 newLines = re.compile("[\n\r]")
 regexpReserved = re.compile("([\[\]\{\}\.\?\*\+\-])")
+lettersOnly = re.compile("[^à-ÿÀ-ß ]")
 
 event_titles = {}
 requested = False
@@ -127,11 +128,15 @@ def ParseHeadedTable(markup):
 
 		values = []
 		for v in re.split("<t[dh]>", re.sub("</(tr|td|th)>", "", row).strip()):
-			values.append(ToUnicode(v).strip())
+			if not isHeader:
+				values.append(ToUnicode(lettersOnly.sub("", v)).strip())
+			else:
+				values.append(ToUnicode(v).strip())
 
 		if not isHeader:
 			for col in values:
 				col = deWhitespace.sub(" ", col.strip())
+
 				for name in colnames:
 					for item in colnames[name]:
 						if col == item:
@@ -139,7 +144,7 @@ def ParseHeadedTable(markup):
 							break
 				cols.append(col)
 			isHeader = True
-#			print "-".join(cols)
+			print "-".join(cols)
 		else:
 			item = {}
 			for i in range(len(cols)):
