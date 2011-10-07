@@ -17,6 +17,8 @@ import datetime
 from credentials import *
 
 # Constants & precompiled values
+debug = 1
+
 months = [u"января", u"февраля", u"марта", u"апреля", u"мая", u"июня", u"июля", u"августа", u"сентября", u"октября", u"ноября", u"декабря"]
 monthsEng = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 replaces = {"&minus;": "-", "&mdash;": "-", "&quot;": "\"", "&ndash;": "-"}
@@ -25,34 +27,39 @@ colnames = {u"Мероприятие": [u"Название мероприятия"], u"Открытие": [u"Время отк
 skipers = {"##>##": "[^>]*", "##<##": "[^<]*"}
 chunk = re.compile("##([a-z_]*)(:([^#]+)){0,1}##")
 
-deRegex = re.compile("[\[\]\{\}\(\)\|\$\^\+\*]");
+deRegex = re.compile("[\[\]\{\}\(\)\|\$\^\+\*]")
 deTag  = re.compile("</{0,1}[a-z]+[^>]*>")
+clean = re.compile("[<>]")
 deWhitespace = re.compile("\s+")
 deSpace = re.compile("(\s+|&nbsp;)")
 deQuotes = re.compile("&[lgr](aquo|t);")
 newLines = re.compile("[\n\r]")
 regexpReserved = re.compile("([\[\]\{\}\.\?\*\+\-])")
-lettersOnly = re.compile("[^а-яА-Я ]")
 
 event_titles = {}
 requested = False
 
 #baseURL = "http://www.sport.saratov.gov.ru/news/events/"
 baseURL = "http://www.sport.saratov.gov.ru/news/sport/"
+#baseURL = "http://www.sport.saratov.gov.ru/news/"
+#baseURL = "http://www.sport.saratov.gov.ru/"
 linkedURL = "http://www.sport.saratov.gov.ru"
 
 eventLength = datetime.timedelta(hours=4)
 dayLength = datetime.timedelta(days=1)
 
 titleTemplates = [
+	"<a href=\"##url:\"##\">План ##shit:<## на ##title:<## года</a>",
+	"<a href=\"##url:\"##\">##shit:<##ероприятия##shit:<##министерства##title:<##</a>"
+]
+'''
 	"<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<## года</a>", 
 	"<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>", 
 	"<a href=\"##url:\"##\" title=\"##skip:\"##\">ПЛАН мероприятий министерства ##shit:<## на период с ##title:<## года</a>", 
 	"<a href=\"##url:\"##\">Мероприятия##shit:<## области ##title:<## г.</a>", 
-	"<a href=\"##url:\"##\">План ##shit:<## на ##title:<## года</a>",
 	"<a href=\"##url:\"##\">##shit:<## мероприяти##shit:<## министерства ##title:<##</a>"
-]
 
+'''
 
 #Мероприятия  министерства по развитию спорта, физической культуры и туризма  Саратовской области с 21 по 27 февраля 2011 г.
 
@@ -65,6 +72,12 @@ newsTemplate = """<tr>##<##
 </tr>"""
 
 # Subs
+
+def debug_line(text):
+	global debug
+
+	if debug:
+		print "[INFO] %s" % text
 
 # Searches haystack for expression, trying to return requested group string
 # if not found - emty string will be returned
@@ -119,6 +132,8 @@ def CleanTableCells(markup):
 
 # Parses table with header into a set of dectionaries, one per each row
 def ParseHeadedTable(markup):
+	global debug
+
 	cols = []
 	result = []
 	isHeader = False
@@ -128,15 +143,11 @@ def ParseHeadedTable(markup):
 
 		values = []
 		for v in re.split("<t[dh]>", re.sub("</(tr|td|th)>", "", row).strip()):
-			if not isHeader:
-				values.append(ToUnicode(lettersOnly.sub("", v)).strip())
-			else:
-				values.append(ToUnicode(v).strip())
+			values.append(ToUnicode(v).strip())
 
 		if not isHeader:
 			for col in values:
-				col = deWhitespace.sub(" ", col.strip())
-
+				col = clean.sub("", deWhitespace.sub(" ", col.strip()))
 				for name in colnames:
 					for item in colnames[name]:
 						if col == item:
@@ -144,9 +155,13 @@ def ParseHeadedTable(markup):
 							break
 				cols.append(col)
 			isHeader = True
-			print "-".join(cols)
+
+			debug_line("Columns: " + "|".join(cols))
 		else:
 			item = {}
+			if len(cols) != len(values):
+				continue
+
 			for i in range(len(cols)):
 				item[cols[i]] = values[i]
 			result.append(item)
@@ -165,7 +180,8 @@ def ToUnicode(text):
 		exit(0)
 
 def GetWebPage(url):
-#	print "\n\n URL: %s" % url
+
+	debug_line("URL: %s" % url)
 
 	website = urllib2.urlopen(url)
 	website_html = website.read()
@@ -187,6 +203,8 @@ def ReplaceSpecials(text):
 	return text
 
 def GetTemplateMatches(haystack, template):
+	global debug
+
 	result = []
 
 	chunks = []
@@ -195,22 +213,27 @@ def GetTemplateMatches(haystack, template):
 		if c.group(3) and len(c.group(3)) > 1:
 			chunks.append("")
 
-#	print chunks
+	debug_line("Chunks: %s" % chunks)
 	
 	pattern = newLines.sub(" ", deRegex.sub("\\\\1", template))
 	for k in skipers.keys():
 		pattern = pattern.replace(k, skipers[k])
 
-#	print chunk.sub(DeChunk, pattern)
+	debug_line("Chunked: %s" % chunk.sub(DeChunk, pattern))
+
 	pattern = re.compile(chunk.sub(DeChunk, pattern), re.DOTALL)
 
 	for match in pattern.finditer(haystack):
-#		print "---\n%s\n---" % match.group(0)
+
+		debug_line("Pattern match: \"%s\"" % match.group(0))
+
 		result1 = {}
 		for i in range(1, len(chunks) + 1):
 			finding = deWhitespace.sub(" ", deSpace.sub(" ", deQuotes.sub('"', deTag.sub("", match.group(i))))).strip()
 			result1[chunks[i - 1]] = finding
-#		print result1
+
+		debug_line("Result: %s" % result1)
+
 		result.append(result1)
 
    	return result
@@ -220,14 +243,15 @@ def MultipleMatches(haystack, templates):
 		result = GetTemplateMatches(haystack, i)
 		if len(result) == 0:
 			continue
-		return result
 	return result
 	
 def DetectDate(date, time):
 	global year
 
 	dat = ""
-#	print "> %s, %s" % (date, time)
+
+	debug_line("Date & time: %s, %s" % (date, time))
+
 	for i in range(0, len(months)):
 		if re.match("^(\d+)[ \-]*([%s]+)$" % months[i], date):
 			day = int(re.sub("[^\d]", "", date))
@@ -303,21 +327,21 @@ def gcCreateEvent(e, start_date, end_date=None):
 	event.content = atom.Content(text = content)
 	event.where.append(gdata.calendar.Where(value_string = place))
 
-	if end_date:
-		recurrence_data = "DTSTART;TZID=Europe/Moscow:%s\r\nDURATION:PT4H\r\nRRULE:FREQ=DAILY;UNTIL=%s\r\n" % (gcRecurrentDate(start_date), gcRecurrentDate(end_date + eventLength))
-		#print recurrence_data
-		event.recurrence = gdata.calendar.Recurrence(text=recurrence_data)
-	else:
-		event.when.append(gdata.calendar.When(start_time=gcDate(start_date), end_time=gcDate(start_date + eventLength)))
-
 	try:
+		if end_date:
+			recurrence_data = "DTSTART;TZID=Europe/Moscow:%s\r\nDURATION:PT4H\r\nRRULE:FREQ=DAILY;UNTIL=%s\r\n" % (gcRecurrentDate(start_date), gcRecurrentDate(end_date + eventLength))
+			#print recurrence_data
+			event.recurrence = gdata.calendar.Recurrence(text=recurrence_data)
+		else:
+			event.when.append(gdata.calendar.When(start_time=gcDate(start_date), end_time=gcDate(start_date + eventLength)))
+
 		new_event = calendar_service.InsertEvent(event, '/calendar/feeds/%s@group.calendar.google.com/private/full' % calendar)
 		return True
 	except:
 		return False
 
 def gcEventDoesExist(title):
-	global calendar_service, event_titles, requested
+	global calendar_service, event_titles, requested, debug
 
 	if not requested:
 		requested = True
@@ -331,7 +355,9 @@ def gcEventDoesExist(title):
 
 		for i, an_event in enumerate(feed.entry):
 			event_titles[an_event.title.text.decode("utf-8")] = 1
-			#print "'%s'" % an_event.title.text.decode("utf-8")
+
+			debug_line("Event '%s'" % an_event.title.text.decode("utf-8"))
+
 		if len(event_titles) == 0:
 			print "[x] Unable to read existing events cache!"
 			exit(1)	
@@ -359,7 +385,7 @@ for t in MultipleMatches(GetWebPage(baseURL), titleTemplates):
 		break
 	pages += 1
 
-	print "\n----------- Page \"%s\"" % ToUnicode(t["title"])
+	print "\n----------- Page \"%s\"" % (ToUnicode(t["title"]))
 
 	year = GetMatchGroup(t["title"], re.compile("(2\d{3})"), 1)
 	if not year or year < 2000:
@@ -382,7 +408,8 @@ for t in MultipleMatches(GetWebPage(baseURL), titleTemplates):
 
 		try:
 			dates = DatesRange(row[u"Дата"], row[u"Время"])
-			#print dates
+
+			debug_line("Dates: %s" % dates)
 		except:
 			print "[!] Unable to parse date (%s) for event \"%s\"" % (row[u"Дата"], title)
 
