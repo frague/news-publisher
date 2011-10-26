@@ -17,7 +17,7 @@ import datetime
 from credentials import *
 
 # Constants & precompiled values
-debug = 1
+debug = 0
 
 months = [u"января", u"февраля", u"марта", u"апреля", u"мая", u"июня", u"июля", u"августа", u"сентября", u"октября", u"ноября", u"декабря"]
 monthsEng = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
@@ -40,8 +40,8 @@ event_titles = {}
 requested = False
 
 #baseURL = "http://www.sport.saratov.gov.ru/news/events/"
-baseURL = "http://www.sport.saratov.gov.ru/news/sport/"
-#baseURL = "http://www.sport.saratov.gov.ru/news/"
+#baseURL = "http://www.sport.saratov.gov.ru/news/sport/"
+baseURL = "http://www.sport.saratov.gov.ru/news/"
 #baseURL = "http://www.sport.saratov.gov.ru/"
 linkedURL = "http://www.sport.saratov.gov.ru"
 
@@ -50,18 +50,13 @@ dayLength = datetime.timedelta(days=1)
 
 titleTemplates = [
 	"<a href=\"##url:\"##\">План ##shit:<## на ##title:<## года</a>",
-	"<a href=\"##url:\"##\">##shit:<##ероприятия##shit:<##министерства##title:<##</a>"
-]
-'''
+	"<a href=\"##url:\"##\">##shit:<##ероприятия##shit:<##министерства##title:<##</a>",
 	"<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<## года</a>", 
 	"<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>", 
 	"<a href=\"##url:\"##\" title=\"##skip:\"##\">ПЛАН мероприятий министерства ##shit:<## на период с ##title:<## года</a>", 
 	"<a href=\"##url:\"##\">Мероприятия##shit:<## области ##title:<## г.</a>", 
-	"<a href=\"##url:\"##\">##shit:<## мероприяти##shit:<## министерства ##title:<##</a>"
-
-'''
-
-#Мероприятия  министерства по развитию спорта, физической культуры и туризма  Саратовской области с 21 по 27 февраля 2011 г.
+	"<a href=\"##url:\"##\">##shit:<## мероприяти##shit:<## министерства ##title:<##</a>",
+]
 
 newsTemplate = """<tr>##<##
 <td##>##>##datetime:</td>##</td>##<##
@@ -202,10 +197,8 @@ def ReplaceSpecials(text):
 		text = text.replace(needle, replaces[needle])
 	return text
 
-def GetTemplateMatches(haystack, template):
+def GetTemplateMatches(haystack, template, result):
 	global debug
-
-	result = []
 
 	chunks = []
 	for c in chunk.finditer(template):
@@ -225,7 +218,7 @@ def GetTemplateMatches(haystack, template):
 
 	for match in pattern.finditer(haystack):
 
-		debug_line("Pattern match: \"%s\"" % match.group(0))
+		debug_line("Pattern match found: \"%s\"" % match.group(0))
 
 		result1 = {}
 		for i in range(1, len(chunks) + 1):
@@ -239,10 +232,9 @@ def GetTemplateMatches(haystack, template):
    	return result
 
 def MultipleMatches(haystack, templates):
+	result = []
 	for i in templates:
-		result = GetTemplateMatches(haystack, i)
-		if len(result) == 0:
-			continue
+		GetTemplateMatches(haystack, i, result)
 	return result
 	
 def DetectDate(date, time):
@@ -378,12 +370,12 @@ print "- Login to Google Calendar"
 gcLogin()
 
 # Retrieve events
-pages = 0
-print "- Iterating through the recent 5 pages:"
+pages = 2
+print "- Iterating through the recent %s pages:" % pages
 for t in MultipleMatches(GetWebPage(baseURL), titleTemplates):
-	if pages == 1:
+	if pages == 0:
 		break
-	pages += 1
+	pages -= 1
 
 	print "\n----------- Page \"%s\"" % (ToUnicode(t["title"]))
 
@@ -427,6 +419,6 @@ for t in MultipleMatches(GetWebPage(baseURL), titleTemplates):
 						break;	
 					else:
 						time.sleep(5)
-				print "[%s] %s: '%s'" % (action, PrintableDate(dates[0]), title)
+				print "[%s] %s: '%s'" % (action, PrintableDate(dates[0]), title[0:100])
 			else:
-				print "[ ] %s: '%s'" % (PrintableDate(dates[0]), title)
+				print "[ ] %s: '%s'" % (PrintableDate(dates[0]), title[0:100])
