@@ -42,6 +42,7 @@ requested = False
 #baseURL = "http://www.sport.saratov.gov.ru/news/events/"
 #baseURL = "http://www.sport.saratov.gov.ru/news/sport/"
 baseURL = "http://www.sport.saratov.gov.ru/news/"
+baseURLs = ["http://www.sport.saratov.gov.ru/news/sport/", "http://www.sport.saratov.gov.ru/news/"]
 #baseURL = "http://www.sport.saratov.gov.ru/"
 linkedURL = "http://www.sport.saratov.gov.ru"
 
@@ -67,6 +68,12 @@ newsTemplate = """<tr>##<##
 </tr>"""
 
 # Subs
+
+def header(text, char = '='):
+	""" Prints fixed-length header
+	"""
+	a = "%s %s " % (2*char, text)
+	print a + char * (115 - len(a))
 
 def debug_line(text):
 	global debug
@@ -370,55 +377,58 @@ print "- Login to Google Calendar"
 gcLogin()
 
 # Retrieve events
-pages = 2
-print "- Iterating through the recent %s pages:" % pages
-for t in MultipleMatches(GetWebPage(baseURL), titleTemplates):
-	if pages == 0:
-		break
-	pages -= 1
+for url in baseURLs:
+	pages = 1
 
-	print "\n----------- Page \"%s\"" % (ToUnicode(t["title"]))
-
-	year = GetMatchGroup(t["title"], re.compile("(2\d{3})"), 1)
-	if not year or year < 2000:
-		year = datetime.date.today().year
-	else:
-		year = int(year)
-
-	page = GetWebPage("%s%s" % (linkedURL, t["url"].replace("&amp;", "&")))
-
-	table = []
-	for tableGroup in tableExpr.finditer(page):
-		table = ParseHeadedTable(CleanTableCells(CleanHtmlTable(tableGroup.group(1))))
-		if len(table) and table[0][u"Время"]:
+	print "\n"
+	header("Iterating through the recent %s pages in %s:" % (pages, url))
+	for t in MultipleMatches(GetWebPage(url), titleTemplates):
+		if pages == 0:
 			break
+		pages -= 1
+
+		header("Match found \"%s\"" % (ToUnicode(t["title"])), '-')
+
+		year = GetMatchGroup(t["title"], re.compile("(2\d{3})"), 1)
+		if not year or year < 2000:
+			year = datetime.date.today().year
+		else:
+			year = int(year)
+
+		page = GetWebPage("%s%s" % (linkedURL, t["url"].replace("&amp;", "&")))
+
+		table = []
+		for tableGroup in tableExpr.finditer(page):
+			table = ParseHeadedTable(CleanTableCells(CleanHtmlTable(tableGroup.group(1))))
+			if len(table) and table[0][u"Время"]:
+				break
 
 
-	for row in table:
-		row[u"Время"] = re.sub(u"\s*ч.$", "", row[u"Время"])
-		title = ReplaceSpecials(row[u"Мероприятие"])
+		for row in table:
+			row[u"Время"] = re.sub(u"\s*ч.$", "", row[u"Время"])
+			title = ReplaceSpecials(row[u"Мероприятие"])
 
-		try:
-			dates = DatesRange(row[u"Дата"], row[u"Время"])
+			try:
+				dates = DatesRange(row[u"Дата"], row[u"Время"])
 
-			debug_line("Dates: %s" % dates)
-		except:
-			print "[!] Unable to parse date (%s) for event \"%s\"" % (row[u"Дата"], title)
+				debug_line("Dates: %s" % dates)
+			except:
+				print "[!] Unable to parse date (%s) for event \"%s\"" % (row[u"Дата"], title)
 
-		if dates and title:
-			if not gcEventDoesExist(title):
-				action = "!"
+			if dates and title:
+				if not gcEventDoesExist(title):
+					action = "!"
 
-				end_date = None
-				if len(dates) > 1:
-					end_date = dates[1]
+					end_date = None
+					if len(dates) > 1:
+						end_date = dates[1]
 
-				for i in range(0, 5):
-					if gcCreateEvent(row, dates[0], end_date):
-						action = "+"
-						break;	
-					else:
-						time.sleep(5)
-				print "[%s] %s: '%s'" % (action, PrintableDate(dates[0]), title[0:100])
-			else:
-				print "[ ] %s: '%s'" % (PrintableDate(dates[0]), title[0:100])
+					for i in range(0, 5):
+						if gcCreateEvent(row, dates[0], end_date):
+							action = "+"
+							break;	
+						else:
+							time.sleep(5)
+					print "[%s] %s: '%s'" % (action, PrintableDate(dates[0]), title[0:100])
+				else:
+					print "[ ] %s: '%s'" % (PrintableDate(dates[0]), title[0:100])
