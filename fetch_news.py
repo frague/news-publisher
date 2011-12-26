@@ -15,14 +15,17 @@ import urllib2
 import re
 import datetime
 from credentials import *
+from logger import get_logger
+
+
+LOGGER = get_logger('fetch_news')
 
 # Constants & precompiled values
-debug = 0
 
 months = [u"января", u"февраля", u"марта", u"апреля", u"мая", u"июня", u"июля", u"августа", u"сентября", u"октября", u"ноября", u"декабря"]
 monthsEng = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 replaces = {"&minus;": "-", "&mdash;": "-", "&quot;": "\"", "&ndash;": "-"}
-colnames = {u"Мероприятие": [u"Название мероприятия", u"Название Мероприятия"], u"Открытие": [u"Время открытия", u"Начало"], u"Место проведения": [u"Место проведения>"]}
+colnames = {u"Мероприятие": [u"Название мероприятия", u"Название Мероприятия", u"Название мероприятие"], u"Открытие": [u"Время открытия", u"Начало"], u"Место проведения": [u"Место проведения>"]}
 
 skipers = {"##>##": "[^>]*", "##<##": "[^<]*"}
 chunk = re.compile("##([a-z_]*)(:([^#]+)){0,1}##")
@@ -74,12 +77,6 @@ def header(text, char = '='):
 	"""
 	a = "%s %s " % (2*char, text)
 	print a + char * (115 - len(a))
-
-def debug_line(text):
-	global debug
-
-	if debug:
-		print "[INFO] %s" % text
 
 # Searches haystack for expression, trying to return requested group string
 # if not found - emty string will be returned
@@ -158,7 +155,7 @@ def ParseHeadedTable(markup):
 				cols.append(col)
 			isHeader = True
 
-			debug_line("Columns: " + "|".join(cols))
+			LOGGER.debug("Columns: " + "|".join(cols))
 		else:
 			item = {}
 			if len(cols) != len(values):
@@ -178,12 +175,11 @@ def ToUnicode(text):
 	try:
 		return unicode(text, 'cp1251')
 	except:
-		print "[!] Error converting to unicode: %s" % text
-		exit(0)
+		raise Exception("Error converting to unicode: %s" % text)
 
 def GetWebPage(url):
 
-	debug_line("URL: %s" % url)
+	LOGGER.debug("URL: %s" % url)
 
 	website = urllib2.urlopen(url)
 	website_html = website.read()
@@ -213,26 +209,26 @@ def GetTemplateMatches(haystack, template, result):
 		if c.group(3) and len(c.group(3)) > 1:
 			chunks.append("")
 
-	debug_line("Chunks: %s" % chunks)
+	LOGGER.debug("Chunks: %s" % chunks)
 	
 	pattern = newLines.sub(" ", deRegex.sub("\\\\1", template))
 	for k in skipers.keys():
 		pattern = pattern.replace(k, skipers[k])
 
-	debug_line("Chunked: %s" % chunk.sub(DeChunk, pattern))
+	LOGGER.debug("Chunked: %s" % chunk.sub(DeChunk, pattern))
 
 	pattern = re.compile(chunk.sub(DeChunk, pattern), re.DOTALL)
 
 	for match in pattern.finditer(haystack):
 
-		debug_line("Pattern match found: \"%s\"" % match.group(0))
+		LOGGER.debug("Pattern match found: \"%s\"" % match.group(0))
 
 		result1 = {}
 		for i in range(1, len(chunks) + 1):
 			finding = deWhitespace.sub(" ", deSpace.sub(" ", deQuotes.sub('"', deTag.sub("", match.group(i))))).strip()
 			result1[chunks[i - 1]] = finding
 
-		debug_line("Result: %s" % result1)
+		LOGGER.debug("Result: %s" % result1)
 
 		result.append(result1)
 
@@ -249,7 +245,7 @@ def DetectDate(date, time):
 
 	dat = ""
 
-	debug_line("Date & time: %s, %s" % (date, time))
+	LOGGER.debug("Date & time: %s, %s" % (date, time))
 
 	for i in range(0, len(months)):
 		if re.match("^(\d+)[ \-]*([%s]+)$" % months[i], date):
@@ -355,11 +351,10 @@ def gcEventDoesExist(title):
 		for i, an_event in enumerate(feed.entry):
 			event_titles[an_event.title.text.decode("utf-8")] = 1
 
-			debug_line("Event '%s'" % an_event.title.text.decode("utf-8"))
+			LOGGER.debug("Event '%s'" % an_event.title.text.decode("utf-8"))
 
 		if len(event_titles) == 0:
-			print "[x] Unable to read existing events cache!"
-			exit(1)	
+			raise Exception("[x] Unable to read existing events cache!")
 
 	result = event_titles.has_key(title)
 	event_titles[title] = 1
@@ -411,7 +406,7 @@ for url in baseURLs:
 			try:
 				dates = DatesRange(row[u"Дата"], row[u"Время"])
 
-				debug_line("Dates: %s" % dates)
+				LOGGER.debug("Dates: %s" % dates)
 			except:
 				print "[!] Unable to parse date (%s) for event \"%s\"" % (row[u"Дата"], title)
 
