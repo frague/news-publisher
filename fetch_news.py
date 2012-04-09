@@ -25,7 +25,7 @@ LOGGER = get_logger('fetch_news')
 months = [u"января", u"февраля", u"марта", u"апреля", u"мая", u"июня", u"июля", u"августа", u"сентября", u"октября", u"ноября", u"декабря"]
 monthsEng = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 replaces = {"&minus;": "-", "&mdash;": "-", "&quot;": "\"", "&ndash;": "-"}
-colnames = {u"Мероприятие": [u"Название мероприятия", u"Название Мероприятия", u"Название мероприятие", u"Наименование мероприятия"], u"Открытие": [u"Время открытия", u"Начало"], u"Место проведения": [u"Место проведения>"]}
+colnames = {u"Мероприятие": [u"Название мероприятия", u"Мероприятия", u"Название Мероприятия", u"Название мероприятие", u"Наименование мероприятия"], u"Открытие": [u"Время открытия", u"Начало"], u"Место проведения": [u"Место проведения>"]}
 
 skipers = {"##>##": "[^>]*", "##<##": "[^<]*"}
 chunk = re.compile("##([a-z_]*)(:([^#]+)){0,1}##")
@@ -401,7 +401,10 @@ for url in baseURLs:
 
 		for row in table:
 			row[u"Время"] = re.sub(u"\s*ч.$", "", row[u"Время"])
-			title = ReplaceSpecials(row[u"Мероприятие"])
+			try:
+				title = ReplaceSpecials(row[u"Мероприятие"])
+			except:
+				raise Exception("Unable to find 'Event' column")
 
 			try:
 				dates = DatesRange(row[u"Дата"], row[u"Время"])
