@@ -1,67 +1,62 @@
-# Creates RegExp for matching text until given word will be met
-def not_equal_expr(word):
-  collector = ""
-  result = ""
-  for char in word:
-    char = deRegexp(char)
-    if result:
-      rest += "|"
-    if collector:
-      result += collector
-    result += "[^%s]" % char
-    collector += char
-  return "(%s)" % result
+from utils import *
+from columns import *
+from logger import get_logger
 
-# Clean up HTML table markup
+LOGGER = get_logger(__name__)
+
+# Expressions
 cell_expr = re.compile("(<t[rdh])[^>]*>", re.IGNORECASE)
-def CleanHtmlTable(markup):
-  markup = re.sub("</{0,1}tbody>", "", markup).strip()
-  return cell_expr.sub("\\1>", markup)
- 
-tag_expr = re.compile("<[^>]+>", re.MULTILINE)
-def StripTags(match):
-  processed = re.sub("[\t\s\n\r]+", " ", tag_expr.sub("", match.group(2)).replace("&nbsp;", " ")).strip()
-  processed = re.sub("&(laquo|raquo|lt|gt|quot);", "\"", processed)
-  return "%s%s%s" % (match.group(1), processed, match.group(3))
- 
 td_expr = re.compile("(<td>)(%s+)(</td>)" % not_equal_expr("</td>"))
 th_expr = re.compile("(<th>)(%s+)(</th>)" % not_equal_expr("</th>"))
-def CleanTableCells(markup)
-  markup = th_expr.sub(StripTags, markup)
-  return td_expr.sub(StripTags, markup)
+clean_expr = re.compile("[<>]")
+de_whitespace = re.compile("\s+")
+
+column_types = (title_column, date_column, time_column, place_column)
+ 
+# Clean up HTML table markup
+def clean_table(markup):
+  markup = re.sub("</{0,1}tbody>", "", markup).strip()
+  return cell_expr.sub("\\1>", markup)
+
+# Clean up table cells contents
+def clean_cells(markup):
+  markup = th_expr.sub(strip_tags, markup)
+  return td_expr.sub(strip_tags, markup)
 
 # Parses table with header into a set of dectionaries, one per each row
-def ParseHeadedTable(markup):
-  cols = []
-  result = []
-  isHeader = False
+def parse_headed_table(markup):
+  headers = []
+  contents = []
+  header_match = False
+
   for row in markup.strip().split("<tr>"):
     if not row:
       continue
  
     values = []
     for v in re.split("<t[dh]>", re.sub("</(tr|td|th)>", "", row).strip()):
-      values.append(ToUnicode(v).strip())
+      values.append(to_unicode(v).strip())
  
-    if not isHeader:
+    if not len(headers):
+      # Table columns names are not defined
       for col in values:
-        col = clean.sub("", deWhitespace.sub(" ", col.strip()))
-        for name in colnames:
-          for item in colnames[name]:
-            if col == item:
-              col = name
-              break
-        cols.append(col)
-      isHeader = True
- 
-      LOGGER.debug("Columns: " + "|".join(cols))
+        col = clean_expr.sub("", de_whitespace.sub(" ", col.strip()))
+        LOGGER.debug("Column '%s' found" % col)
+
+        col_classes = []
+        for c in column_types:
+          if c.is_match_for(c, col):
+            col_classes.append(c)
+            header_match = True
+        headers.append(col_classes if len(col_classes) else None)
+      header_defined = True
     else:
-      item = {}
-      if len(cols) != len(values):
+      if len(headers) != len(values):
+        # Amount of cells isn't equal to columns'
         continue
-      
-      for i in range(len(cols)):
-        item[cols[i]] = values[i]
-      result.append(item)
-  return result
+
+      contents.append(values)
+
+  LOGGER.debug("Headers: %s" % headers)
+  return headers if header_match else None, contents
 
