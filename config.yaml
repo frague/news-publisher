@@ -1,0 +1,21 @@
+---
+months: ["января", "февраля", "марта", "апреля", "мая", "июня", 
+  "июля", "августа", "сентября", "октября", "ноября", "декабря"]
+months_eng: ["January", "February", "March", "April", "May", "June", 
+  "July", "August", "September", "October", "November", "December"]
+replaces: {"&minus;": "-", "&mdash;": "-", "&quot;": "\"", "&ndash;": "-",
+  "&frac12;": "1/2", "&frac14;": "1/4"}
+skipers: {"##>##": "[^>]*", "##<##": "[^<]*"}
+title_templates: [
+  "<a href=\"##url:\"##\">План ##shit:<## на ##title:<## года</a>",
+  "<a href=\"##url:\"##\">##shit:<##ероприятия##shit:<##министерства##title:<##</a>",
+  "<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<## года</a>",
+  "<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>",
+  "<a href=\"##url:\"##\" title=\"##skip:\"##\">ПЛАН мероприятий министерства ##shit:<## на период с ##title:<## года</a>",
+  "<a href=\"##url:\"##\">Мероприятия##shit:<## области ##title:<## г.</a>",
+  "<a href=\"##url:\"##\">##shit:<## мероприяти##shit:<## министерства ##title:<##</a>"]
+linked_url: "http://www.sport.saratov.gov.ru"
+base_urls: ["http://www.sport.saratov.gov.ru/news/sport/", 
+  "http://www.sport.saratov.gov.ru/news/"]
+
+

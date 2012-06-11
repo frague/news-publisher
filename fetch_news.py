@@ -9,26 +9,20 @@ import time
 import urllib2
 import re
 import datetime
-from credentials import *
+from credentials import email, password, calendar
 from logger import get_logger
 from utils import *
 from html_table_parser import * 
 from columns import *
-from google_calendar import *
+from google_calendar import gcalendar
 
 
 LOGGER = get_logger(__name__)
+config = yaml.load(read_file("config.yaml"))
 
 # Constants & precompiled values
 
-months = [u"января", u"февраля", u"марта", u"апреля", u"мая", u"июня", u"июля", u"августа", u"сентября", u"октября", u"ноября", u"декабря"]
-monthsEng = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-replaces = {"&minus;": "-", "&mdash;": "-", "&quot;": "\"", "&ndash;": "-"}
-
-
-skipers = {"##>##": "[^>]*", "##<##": "[^<]*"}
 chunk = re.compile("##([a-z_]*)(:([^#]+)){0,1}##")
-
 de_regex = re.compile("[\[\]\{\}\(\)\|\$\^\+\*]")
 deTag  = re.compile("</{0,1}[a-z]+[^>]*>")
 deWhitespace = re.compile("\s+")
@@ -36,55 +30,13 @@ deSpace = re.compile("(\s+|&nbsp;)")
 deQuotes = re.compile("&[lgr](aquo|t);")
 newLines = re.compile("[\n\r]")
 regexpReserved = re.compile("([\[\]\{\}\.\?\*\+\-])")
+table_expr = re.compile("<table[^>]*>(%s+)</table>" % not_equal_expr("</table>"), re.MULTILINE)
 
-event_titles = {}
-requested = False
-
-#baseURL = "http://www.sport.saratov.gov.ru/news/events/"
-#baseURL = "http://www.sport.saratov.gov.ru/news/sport/"
-baseURL = "http://www.sport.saratov.gov.ru/news/"
-baseURLs = ["http://www.sport.saratov.gov.ru/news/sport/", "http://www.sport.saratov.gov.ru/news/"]
-#baseURL = "http://www.sport.saratov.gov.ru/"
-linkedURL = "http://www.sport.saratov.gov.ru"
-
-eventLength = datetime.timedelta(hours=4)
 dayLength = datetime.timedelta(days=1)
 
-titleTemplates = [
-  "<a href=\"##url:\"##\">План ##shit:<## на ##title:<## года</a>",
-  "<a href=\"##url:\"##\">##shit:<##ероприятия##shit:<##министерства##title:<##</a>",
-  "<a href=\"##url:\"##\">План спортивных ##shit:<## на ##title:<## года</a>", 
-  "<a href=\"##url:\"##\">ПЛАН мероприятий министерства по развитию спорта, физической культуры и туризма  Саратовской области</a>", 
-  "<a href=\"##url:\"##\" title=\"##skip:\"##\">ПЛАН мероприятий министерства ##shit:<## на период с ##title:<## года</a>", 
-  "<a href=\"##url:\"##\">Мероприятия##shit:<## области ##title:<## г.</a>", 
-  "<a href=\"##url:\"##\">##shit:<## мероприяти##shit:<## министерства ##title:<##</a>",
-]
-
-newsTemplate = """<tr>##<##
-<td##>##>##datetime:</td>##</td>##<##
-<td##>##>##title:</td>##</td>##<##
-<td##>##>##opening:</td>##</td>##<##
-<td##>##>##responsible:</td>##</td>##<##
-<td##>##>##where:</td>##</td>##<##
-</tr>"""
-
 # Subs
-# Slashes reserved regexp chars
-def de_regexp(text):
-  return regexpReserved.sub("\\\\\\1", text)
 
-# Returns date in printable format
-def printable_date(date):
-  try:
-    return date.strftime("%b, %d")
-  except:
-    return "<Invalid date>";
-
-
-
-
-
-def DeChunk(match):
+def de_chunk(match):
   m = match.group(3)
   if m:
     if len(m) > 1:
@@ -93,27 +45,26 @@ def DeChunk(match):
       return "([^%s]*)" % m
   return "(.*)"
 
-def ReplaceSpecials(text):
-  for needle in replaces.keys():
-    text = text.replace(needle, replaces[needle])
+def replace_specials(text):
+  for needle in config["replaces"].keys():
+    text = text.replace(needle, config["replaces"][needle])
   return text
 
-def GetTemplateMatches(haystack, template, result):
+def get_template_matches(haystack, template, result):
+  LOGGER.debug("Searching for matches for template '%s'" % template)
   chunks = []
   for c in chunk.finditer(template):
     chunks.append(c.group(1))
     if c.group(3) and len(c.group(3)) > 1:
       chunks.append("")
 
-  LOGGER.debug("Chunks: %s" % chunks)
+  LOGGER.debug("Chunks found: %s" % chunks)
   
   pattern = newLines.sub(" ", de_regex.sub("\\\\1", template))
-  for k in skipers.keys():
-    pattern = pattern.replace(k, skipers[k])
+  for k in config["skipers"].keys():
+    pattern = pattern.replace(k, config["skipers"][k])
 
-  LOGGER.debug("Chunked: %s" % chunk.sub(DeChunk, pattern))
-
-  pattern = re.compile(chunk.sub(DeChunk, pattern), re.DOTALL)
+  pattern = re.compile(chunk.sub(de_chunk, pattern), re.DOTALL)
 
   for match in pattern.finditer(haystack):
     LOGGER.debug("Pattern match found: \"%s\"" % match.group(0))
@@ -125,87 +76,59 @@ def GetTemplateMatches(haystack, template, result):
     result.append(result1)
   return result
 
-def MultipleMatches(haystack, templates):
+def multiple_matches(haystack, templates):
   result = []
   for i in templates:
-    GetTemplateMatches(haystack, i, result)
+    get_template_matches(haystack, i, result)
   return result
   
-def DetectDate(date, time):
-  global year
 
-  dat = ""
-
-  LOGGER.debug("Date & time: %s, %s" % (date, time))
-
-  for i in range(0, len(months)):
-    if re.match("^(\d+)[ \-]*([%s]+)$" % months[i], date):
-      day = int(re.sub("[^\d]", "", date))
-      return datetime.datetime(year, i+1, day, time[0], time[1])
-
-  return ""
-
-
-def save_table_events(table):
+def save_table_events(columns, contents, cal, year):
   ''' Attempts to parse provided table as the one
       that contains events
   '''
-  for row in table:
-    row[u"Время"] = re.sub(u"\s*ч.$", "", row[u"Время"])
+  LOGGER.debug("Saving table events")
+  for row in contents:
+    LOGGER.debug("New event:")
+    cal.create_event()
     try:
-      title = ReplaceSpecials(row[u"Мероприятие"])
-    except:
-      raise Exception("Unable to find 'Event' column")
+      for i in range(0, len(columns)):
+        for column_class in columns[i]:
+          column_class.update_event(cal, replace_specials(row[i]))
+      cal.adjust_event_time(year)
 
-    try:
-      dates = DatesRange(row[u"Дата"], row[u"Время"])
+      result = False
+      if not cal.event_exists:
+        result = cal.save_event()
 
-      LOGGER.debug("Dates: %s" % dates)
-    except:
-      print "[!] Unable to parse date (%s) for event \"%s\"" % (row[u"Дата"], title)
-
-    if dates and title:
-      if not gcEventDoesExist(title):
-        action = "!"
-
-        end_date = None
-        if len(dates) > 1:
-          end_date = dates[1]
-
-        for i in range(0, 5):
-          if gcCreateEvent(row, dates[0], end_date):
-            action = "+"
-            break;
-          else:
-            time.sleep(5)
-        print "[%s] %s: '%s'" % (action, printable_date(dates[0]), title[0:100])
-      else:
-        print "[ ] %s: '%s'" % (printable_date(dates[0]), title[0:100])
-  
+      LOGGER.info("[%s] %s: '%s'" % ("+" if result else " ", 
+        printable_date(cal.event.start_date), 
+        cal.event.name[0:100]))
+    except Exception, error:
+      LOGGER.error("Unable to create event - \"%s\"" % unicode(error))
 
 
 ################################################################
 # Main logic
 
 
-print "- Start parsing"
-table_expr = re.compile("<table[^>]*>(%s+)</table>" % not_equal_expr("</table>"), re.MULTILINE)
+LOGGER.info("Start parsing")
 
-print "- Login to Google Calendar"
-gcLogin()
+cal = gcalendar(email, password, calendar)
+cal.login()
 
 # Retrieve events
-for url in baseURLs:
+for url in config["base_urls"]:
   pages = 1
 
-  print "\n"
-  header("Iterating through the recent %s pages in %s:" % (pages, url))
-  for t in MultipleMatches(get_web_page(url), titleTemplates):
+  LOGGER.info("Iterating through the recent %s pages in %s:" % (pages, url))
+  web_page = to_unicode(get_web_page(url)) 
+  for t in multiple_matches(web_page, config["title_templates"]):
     if pages == 0:
       break
     pages -= 1
 
-    header("Match found \"%s\"" % (to_unicode(t["title"])), '-')
+    LOGGER.info("Match found \"%s\"" % (t["title"]))
 
     year = get_match_group(t["title"], re.compile("(2\d{3})"), 1)
     if not year or year < 2000:
@@ -213,12 +136,12 @@ for url in baseURLs:
     else:
       year = int(year)
 
-    page = get_web_page("%s%s" % (linkedURL, t["url"].replace("&amp;", "&")))
+    web_page = get_web_page("%s%s" % (config["linked_url"], t["url"].replace("&amp;", "&")))
 
     table = []
-    for table_group in table_expr.finditer(page):
+    for table_group in table_expr.finditer(web_page):
       columns, contents = parse_headed_table(clean_cells(clean_table(table_group.group(1))))
       if columns:
         LOGGER.debug("Processing table with columns '%s'" % columns)
-        save_table_events()
+        save_table_events(columns, contents, cal, year)
 

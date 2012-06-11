@@ -48,7 +48,7 @@ def parse_headed_table(markup):
           if c.is_match_for(c, col):
             col_classes.append(c)
             header_match = True
-        headers.append(col_classes if len(col_classes) else None)
+        headers.append(col_classes)
       header_defined = True
     else:
       if len(headers) != len(values):

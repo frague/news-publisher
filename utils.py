@@ -1,5 +1,7 @@
 from logger import get_logger
+import datetime
 import urllib2
+import yaml
 import re
 import os
 
@@ -16,6 +18,12 @@ def header(text, char = '='):
   """
   a = "%s %s " % (2 * char, text)
   print a + char * (115 - len(a))
+
+def printable_date(date):
+  try:
+    return date.strftime("%b, %d")
+  except:
+    return "<Invalid date>"
 
 # Searches haystack for expression, trying to return requested group string
 # if not found - emty string will be returned
@@ -65,7 +73,7 @@ def get_web_page(url):
   return website_html
 
 # File operations
-def ReadFile(file_name):
+def read_file(file_name):
   result = ""
   if os.path.exists(file_name):
     rf = file(file_name, "r")
@@ -73,8 +81,47 @@ def ReadFile(file_name):
     rf.close()
   return result
 
-def WriteFile(file_name, contents):
+def write_file(file_name, contents):
   wf = file(file_name, "w")
   wf.write(contents)
   wf.close()
+
+config = yaml.load(read_file("config.yaml"))
+
+
+# Date&time methods
+def detect_date(date, year):
+  ''' Attempts to find date string in text. Returns datetime object '''
+
+  LOGGER.debug("Searching for a date in '%s'" % date)
+  for i in range(0, len(config["months"])):
+    if re.match("^(\d+)[ \-]*([%s]*)$" % config["months"][i], date):
+      day = int(re.sub("[^\d]", "", date))
+      return datetime.datetime(year, i + 1, day, 0, 0)
+  return None
+
+
+def dates_range(date_string, year):
+  ''' Attempts to find dates range in text '''
+
+  LOGGER.debug("Parsing dates range: '%s'" % date_string)
+
+  dates = re.split("-", date_string)
+  if len(dates) == 1:
+    # Single date
+    return detect_date(date_string, year), None
+  else:
+    if len(dates) == 2:
+      # Dates range
+      month = get_match_group(date_string, re.compile("\d+-\d+\s([^\d]+)$"), 1)
+      if month:
+        # Same month
+        start_date = detect_date("%s %s" % (dates[0], month), year)
+        end_date = detect_date(dates[1], year)
+      else:
+        # Different months
+        start_date = detect_date(dates[0].strip(), year)
+        end_date = detect_date(dates[1].strip(), year)
+      return start_date, end_date
+  return None, None
 
