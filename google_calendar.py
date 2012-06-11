@@ -116,7 +116,7 @@ class gcalendar():
         self.events_cache[self._decode(an_event.title.text)] = True
         LOGGER.debug("Event '%s'" % self._decode(an_event.title.text))
 
-      if not len(events_cache):
+      if not len(self.events_cache):
         raise Exception("[x] Unable to read existing events cache!")
 
     result = self.events_cache.has_key(self.event.name)
