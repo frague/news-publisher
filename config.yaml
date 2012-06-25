@@ -16,6 +16,7 @@ title_templates: [
   "<a href=\"##url:\"##\">##shit:<## мероприяти##shit:<## министерства ##title:<##</a>"]
 linked_url: "http://www.sport.saratov.gov.ru"
 base_urls: ["http://www.sport.saratov.gov.ru/news/sport/", 
-  "http://www.sport.saratov.gov.ru/news/"]
+  "http://www.sport.saratov.gov.ru/news/",
+  "http://www.sport.saratov.gov.ru"]
 
 

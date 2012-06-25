@@ -80,7 +80,8 @@ class time_column(column):
       cal.event.time = datetime.time(int(hours), int(minutes))
       LOGGER.debug("Event start time: %s" % cal.event.time)
     elif not cal.event.time:
-      raise Exception("Unable to parse event time '%s'" % text)
+      cal.event.time = datetime.time(10, 0)
+      LOGGER.debug("Event start time: 10:00 (default)")
 
 class place_column(column):
   @staticmethod
