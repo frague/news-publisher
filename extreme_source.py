@@ -1,3 +1,0 @@
-'''
-1. <b>Открытый Чемпионат г.Саратова по маунтинбайку (Downhill)</b><br>Велосипед &raquo; <span style='font-size:9px;'>17.10.2010г</span><br>&raquo;&raquo; <a href='#'>Подробнее</a><br><br>2. <b>Green Rabbit AR 2010</b><br>Мультиспорт &raquo; <span style='font-size:9px;'>25.09.2010г - 26.09.2010г</span><br>&raquo;&raquo; <a href='http://extreme.vsaratove.ru/viewpage.php?page_id=104'>Подробнее</a><br><br>3. <b>
-'''
