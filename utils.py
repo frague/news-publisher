@@ -1,11 +1,11 @@
-from logger import get_logger
+from logging import getLogger
 import datetime
 import urllib2
 import yaml
 import re
 import os
 
-LOGGER = get_logger(__name__)
+LOGGER = getLogger()
 
 # Expressions
 tag_expr = re.compile("<[^>]+>", re.MULTILINE)
@@ -65,7 +65,7 @@ def to_unicode(text):
 
 def get_web_page(url):
 
-  LOGGER.debug("URL: %s" % url)
+  LOGGER.debug("Getting web page by URL: %s" % url)
 
   website = urllib2.urlopen(url)
   website_html = website.read()
@@ -73,16 +73,19 @@ def get_web_page(url):
   return website_html
 
 # File operations
-def read_file(file_name):
+def read_file(file_name, open_type="r"):
+  LOGGER.debug("Reading file \"%s\"" % file_name)
   result = ""
   if os.path.exists(file_name):
-    rf = file(file_name, "r")
+    rf = file(file_name, open_type)
     result = rf.read()
     rf.close()
+  LOGGER.debug("%s bytes read" % len(result))
   return result
 
-def write_file(file_name, contents):
-  wf = file(file_name, "w")
+def write_file(file_name, contents, open_type="w"):
+  LOGGER.debug("Writing %s bytes to file \"%s\"" % (len(content), file_name))
+  wf = file(file_name, open_type)
   wf.write(contents)
   wf.close()
 

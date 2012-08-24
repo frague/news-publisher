@@ -6,10 +6,10 @@ import atom
 import gdata
 import datetime
 from utils import *
-from logger import get_logger
+from logging import getLogger
 from google_calendar import gcalendar
 
-LOGGER = get_logger(__name__)
+LOGGER = getLogger()
 
 class column:
   """ Base class for column parsing """

@@ -13,9 +13,9 @@ import time
 import urllib2
 import re
 import datetime
-from logger import get_logger
+from logging import getLogger
 
-LOGGER = get_logger(__name__)
+LOGGER = getLogger()
 
 class gcalendar():
   service = None

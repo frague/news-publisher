@@ -10,14 +10,14 @@ import urllib2
 import re
 import datetime
 from credentials import email, password, calendar
-from logger import get_logger
+from logger import make_custom_logger
 from utils import *
 from html_table_parser import * 
 from columns import *
 from google_calendar import gcalendar
 
 
-LOGGER = get_logger(__name__)
+LOGGER = make_custom_logger()
 config = yaml.load(read_file("config.yaml"))
 
 # Constants & precompiled values

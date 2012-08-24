@@ -1,8 +1,8 @@
 from utils import *
 from columns import *
-from logger import get_logger
+from logging import getLogger
 
-LOGGER = get_logger(__name__)
+LOGGER = getLogger()
 
 # Expressions
 cell_expr = re.compile("(<t[rdh])[^>]*>", re.IGNORECASE)
