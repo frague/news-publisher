@@ -4,7 +4,7 @@ import logging.handlers
 
 __author__ = 'Nick Bogdanov <frague@mail.ru>'
 
-LOGGER_LEVEL = logging.DEBUG
+LOGGER_LEVEL = logging.INFO
 LOGGER_FORMAT = logging.Formatter("%(asctime)s %(module)s - %(levelname)s: %(message)s")
 LOGGER_HANDLER = logging.StreamHandler(sys.__stdout__)
 LOGGER_HANDLER.setFormatter(LOGGER_FORMAT)
