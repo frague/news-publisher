@@ -83,29 +83,59 @@ def multiple_matches(haystack, templates):
   return result
   
 
+def reconnect_to_gcal(cal):
+  ''' Re-connects to Google Calendar
+  '''
+  LOGGER.info("Re-connecting to GCal")
+  cal.login()
+  return cal
+
 def save_table_events(columns, contents, cal, year):
   ''' Attempts to parse provided table as the one
       that contains events
   '''
   LOGGER.debug("Saving table events")
   for row in contents:
-    LOGGER.debug("New event:")
-    cal.create_event()
-    try:
-      for i in range(0, len(columns)):
-        for column_class in columns[i]:
-          column_class.update_event(cal, replace_specials(row[i]))
-      cal.adjust_event_time(year)
+    try_saving = True
+    retry = False
+    while try_saving or retry:
+      status = " "
+      try_saving = False
+      if retry:
+        cal = reconnect_to_gcal(cal)
 
-      result = False
-      if not cal.event_exists:
-        result = cal.save_event()
+      LOGGER.debug("New event:")
+      cal.create_event()
+      try:
+        for i in range(0, len(columns)):
+          for column_class in columns[i]:
+            column_class.update_event(cal, replace_specials(row[i]))
+        cal.adjust_event_time(year)
 
-      LOGGER.info("[%s] %s: '%s'" % ("+" if result else " ", 
-        printable_date(cal.event.start_date), 
-        cal.event.name[0:100]))
-    except Exception, error:
-      LOGGER.error("Unable to create event - \"%s\"" % unicode(error))
+        result = False
+        if not cal.event_exists:
+          result = cal.save_event(1)
+          if not result:
+            status = "?"
+            del cal.events_cache[cal.event.name]
+            if retry:
+              LOGGER.error("Unable to store event again")
+              status = "!"
+              retry = False
+            else:
+              # Try reconnecting once and retry to save the event
+              retry = True
+          else:
+            retry = False
+            status = "+"
+        else:
+          retry = False
+
+        LOGGER.info("[%s] %s: '%s'" % (status, printable_date(cal.event.start_date), 
+          cal.event.name[0:100]))
+      except Exception, error:
+        LOGGER.error("Unable to create event - \"%s\"" % unicode(error))
+
 
 
 ################################################################
@@ -114,8 +144,7 @@ def save_table_events(columns, contents, cal, year):
 
 LOGGER.info("Start parsing")
 
-cal = gcalendar(email, password, calendar)
-cal.login()
+cal = reconnect_to_gcal(gcalendar(email, password, calendar))
 
 # Retrieve events
 for url in config["base_urls"]:
