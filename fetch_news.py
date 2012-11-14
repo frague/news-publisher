@@ -1,5 +1,5 @@
 #!/usr/local/bin/python
-# coding: windows-1251
+# coding: utf-8
 
 from elementtree import ElementTree
 import getopt

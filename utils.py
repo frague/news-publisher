@@ -59,7 +59,7 @@ def not_equal_expr(word):
 
 def to_unicode(text):
   try:
-    return unicode(text, 'cp1251', 'replace')
+    return unicode(text, 'utf-8', 'replace')
   except:
     raise Exception("Error converting to unicode: '%s'" % text)
 
@@ -68,6 +68,9 @@ def get_web_page(url):
   LOGGER.debug("Getting web page by URL: %s" % url)
 
   website = urllib2.urlopen(url)
+  charset = website.headers.getparam("charset")
+  LOGGER.debug("Charset detected: %s" % charset)
+
   website_html = website.read()
   website.close()
   return website_html
